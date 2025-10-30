@@ -13,7 +13,6 @@
   --pad: 14px;
   color-scheme: dark;
 }
-
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
@@ -31,7 +30,6 @@ body {
   backdrop-filter: saturate(1.1) blur(6px);
   border-bottom: 1px solid var(--ring);
 }
-
 h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
 
 .actions { display: flex; gap: 8px; }
@@ -62,9 +60,7 @@ button:active { transform: translateY(1px); }
 }
 .filters input { accent-color: var(--accent); }
 
-.list {
-  list-style: none; padding: 0; margin: 0; display: grid; gap: var(--gap);
-}
+.list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--gap); }
 .row {
   display: grid; grid-template-columns: auto 1fr auto; gap: 10px;
   align-items: center; background: var(--card);

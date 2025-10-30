@@ -1,73 +1,36 @@
 <!doctype html>
-<html lang="en">
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-  import {
-    getFirestore, enableIndexedDbPersistence, doc, setDoc, getDoc,
-    collection, addDoc, onSnapshot, query, orderBy, serverTimestamp,
-    updateDoc, deleteDoc
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-  // --- Firebase config for your project ---
-  const firebaseConfig = {
-    apiKey: "AIzaSyD4R2FQRpIoig7tlbT-ux5DEGGUh9eo_Eg",
-    authDomain: "indkoeb-8810d.firebaseapp.com",
-    projectId: "indkoeb-8810d",
-    storageBucket: "indkoeb-8810d.firebasestorage.app",
-    messagingSenderId: "689356942821",
-    appId: "1:689356942821:web:2ce4c2874198a68b04930c",
-    measurementId: "G-TGW6HWHC1L"
-  };
-  // ---------------------------------------
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  try { await enableIndexedDbPersistence(db); } catch (_) {}
-
-  // Expose for index.js
-  window.__db = db;
-  window.__fire = { doc, setDoc, getDoc, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc };
-</script>
+<html lang="da">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Shopping List</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Indkøbsliste</title>
   <link rel="stylesheet" href="index.css" />
 </head>
 <body>
   <header class="topbar">
-    <h1>Shopping List</h1>
-    <div class="actions">
-      <button id="btn-export" type="button" title="Export JSON">Export</button>
-      <button id="btn-import" type="button" title="Import JSON">Import</button>
-      <button id="btn-share" type="button" title="Share URL">Share</button>
-    </div>
+    <h1>Indkøbsliste</h1>
   </header>
 
   <main class="container">
     <form id="add-form" class="add-form" autocomplete="off">
-      <input id="item-name" type="text" inputmode="text" placeholder="Add item…" required />
-      <input id="item-notes" type="text" inputmode="text" placeholder="Notes (optional)" />
-      <button id="btn-add" type="submit">Add</button>
+      <input id="item-name" type="text" placeholder="Tilføj vare…" required />
+      <input id="item-notes" type="text" placeholder="Noter (valgfrit)" />
+      <button id="btn-add" type="submit">Tilføj</button>
     </form>
 
-    <div class="filters">
-      <label><input type="radio" name="filter" value="all" checked> All</label>
-      <label><input type="radio" name="filter" value="active"> Not purchased</label>
-      <label><input type="radio" name="filter" value="purchased"> Purchased</label>
+    <div class="filters" role="radiogroup" aria-label="Filter">
+      <label><input type="radio" name="filter" value="all" checked> Alle</label>
+      <label><input type="radio" name="filter" value="active"> Ikke købt</label>
+      <label><input type="radio" name="filter" value="purchased"> Købt</label>
     </div>
 
     <ul id="list" class="list" aria-live="polite"></ul>
   </main>
 
-  <input id="file-input" type="file" accept="application/json" hidden />
-
   <template id="item-template">
     <li class="row">
       <label class="check">
-        <input class="toggle" type="checkbox" />
+        <input class="toggle" type="checkbox" aria-label="Marker som købt" />
         <span class="custom-box" aria-hidden="true"></span>
       </label>
 
@@ -76,7 +39,7 @@
           <span class="name" contenteditable="true" spellcheck="false"></span>
         </div>
         <div class="line2">
-          <span class="notes" contenteditable="true" spellcheck="false" placeholder="Notes"></span>
+          <span class="notes" contenteditable="true" spellcheck="false" placeholder="Noter"></span>
         </div>
         <div class="meta">
           <span class="meta-badge added"></span>
@@ -84,10 +47,12 @@
         </div>
       </div>
 
-      <button class="remove" title="Remove" aria-label="Remove">✕</button>
+      <button class="remove" title="Fjern" aria-label="Fjern">✕</button>
     </li>
   </template>
 
-  <script src="index.js"></script>
+  <!-- Moduler indlæses én gang -->
+  <script type="module" src="firebase.js"></script>
+  <script type="module" src="index.js"></script>
 </body>
 </html>

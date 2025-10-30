@@ -1,65 +1,49 @@
-// Storage keys
-const LS_KEY = "shoppingList.v1";
+// index.js
+import {
+  db, doc, setDoc, getDoc,
+  collection, addDoc, onSnapshot, query, orderBy,
+  serverTimestamp, updateDoc, deleteDoc
+} from "./firebase.js";
 
-// State
-let items = [];
+// URL-hjælpere
+const params = new URLSearchParams(location.search);
+const getListId = () => params.get("id");
+const setListId = (id) => {
+  const p = new URLSearchParams(location.search);
+  p.set("id", id);
+  history.replaceState(null, "", `${location.pathname}?${p.toString()}`);
+};
 
-// Helpers
-const $ = (sel, el = document) => el.querySelector(sel);
-const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
-const nowISO = () => new Date().toISOString();
-const fmtDate = iso => new Date(iso).toLocaleDateString();
-
-// Load from localStorage or URL share
-function loadInitial() {
-  // URL fragment import: #data=<base64>
-  const frag = new URL(location.href).hash;
-  if (frag.startsWith("#data=")) {
-    try {
-      const b64 = frag.slice(6);
-      const json = decodeURIComponent(escape(atob(b64)));
-      const parsed = JSON.parse(json);
-      if (Array.isArray(parsed)) {
-        items = parsed;
-        save(); // persist locally
-        // clean hash to avoid oversized URLs on further navigation
-        history.replaceState(null, "", location.pathname);
-        return;
-      }
-    } catch { /* ignore */ }
-  }
-
-  const raw = localStorage.getItem(LS_KEY);
-  items = raw ? JSON.parse(raw) : [];
-}
-
-// Save to localStorage
-function save() {
-  localStorage.setItem(LS_KEY, JSON.stringify(items));
-}
-
-// ID
-const uid = () => Math.random().toString(36).slice(2, 10);
-
-// DOM refs
+// DOM
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const listEl = $("#list");
 const tpl = $("#item-template");
 
-// Render
-function render() {
-  const filter = $('input[name="filter"]:checked')?.value || "all";
-  listEl.innerHTML = "";
+// Datoformat på dansk
+const fmtDate = (ts) => {
+  if (!ts) return "";
+  try {
+    const dt = ts.toDate ? ts.toDate() : new Date(ts);
+    return dt.toLocaleDateString("da-DK");
+  } catch { return ""; }
+};
 
-  const filtered = items.filter(it => {
-    if (filter === "active") return !it.purchasedAt;
-    if (filter === "purchased") return !!it.purchasedAt;
-    return true;
-  });
+let unsubscribe = null;
 
-  filtered.forEach(it => listEl.appendChild(renderItem(it)));
+// Sørg for at der findes én standard-liste
+async function ensureList() {
+  let id = getListId();
+  if (!id) {
+    const listRef = doc(collection(db, "lists"));
+    await setDoc(listRef, { createdAt: serverTimestamp(), title: "Indkøbsliste" });
+    id = listRef.id;
+    setListId(id);
+  }
+  return id;
 }
 
-function renderItem(it) {
+function renderItem(id, data) {
   const node = tpl.content.firstElementChild.cloneNode(true);
 
   const checkbox = $(".toggle", node);
@@ -69,36 +53,32 @@ function renderItem(it) {
   const purchased = $(".meta .purchased", node);
   const removeBtn = $(".remove", node);
 
-  checkbox.checked = !!it.purchasedAt;
-  name.textContent = it.name;
-  notes.textContent = it.notes || "";
-  name.classList.toggle("purchased", !!it.purchasedAt);
+  name.textContent = data.name || "";
+  notes.textContent = data.notes || "";
+  checkbox.checked = !!data.purchasedAt;
+  name.classList.toggle("purchased", !!data.purchasedAt);
 
-  added.textContent = `Added: ${fmtDate(it.addedAt)}`;
-  if (it.purchasedAt) {
+  if (data.addedAt) added.textContent = `Tilføjet: ${fmtDate(data.addedAt)}`;
+  if (data.purchasedAt) {
     purchased.hidden = false;
-    purchased.textContent = `Purchased: ${fmtDate(it.purchasedAt)}`;
+    purchased.textContent = `Købt: ${fmtDate(data.purchasedAt)}`;
   } else {
     purchased.hidden = true;
   }
 
-  // Events
-  checkbox.addEventListener("change", () => {
-    it.purchasedAt = checkbox.checked ? nowISO() : null;
-    save(); render();
+  checkbox.addEventListener("change", async () => {
+    const purchasedAt = checkbox.checked ? serverTimestamp() : null;
+    await updateDoc(doc(db, "lists", getListId(), "items", id), { purchasedAt });
   });
 
-  const commitEdit = () => {
-    const newName = name.textContent.trim();
-    const newNotes = notes.textContent.trim();
-    if (!newName) {
-      // If name cleared, remove the item
-      items = items.filter(x => x.id !== it.id);
-    } else {
-      it.name = newName;
-      it.notes = newNotes;
+  const commitEdit = async () => {
+    const nm = name.textContent.trim();
+    const nt = notes.textContent.trim();
+    if (!nm) {
+      await deleteDoc(doc(db, "lists", getListId(), "items", id));
+      return;
     }
-    save(); render();
+    await updateDoc(doc(db, "lists", getListId(), "items", id), { name: nm, notes: nt });
   };
 
   name.addEventListener("blur", commitEdit);
@@ -106,92 +86,58 @@ function renderItem(it) {
   name.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); name.blur(); } });
   notes.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); notes.blur(); } });
 
-  removeBtn.addEventListener("click", () => {
-    items = items.filter(x => x.id !== it.id);
-    save(); render();
+  removeBtn.addEventListener("click", async () => {
+    await deleteDoc(doc(db, "lists", getListId(), "items", id));
   });
 
   return node;
 }
 
-// Add item
-$("#add-form").addEventListener("submit", e => {
+function renderList(snapshot) {
+  listEl.innerHTML = "";
+  const filter = $('input[name="filter"]:checked')?.value || "all";
+
+  snapshot.docs.forEach(docSnap => {
+    const data = docSnap.data();
+    if (filter === "active" && data.purchasedAt) return;
+    if (filter === "purchased" && !data.purchasedAt) return;
+    listEl.appendChild(renderItem(docSnap.id, data));
+  });
+}
+
+async function startLiveQuery() {
+  const id = await ensureList();
+  if (unsubscribe) unsubscribe();
+
+  const itemsCol = collection(db, "lists", id, "items");
+  const q = query(itemsCol, orderBy("addedAt", "desc"));
+  unsubscribe = onSnapshot(q, (snap) => renderList(snap));
+}
+
+// Tilføj vare
+$("#add-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = $("#item-name");
   const notes = $("#item-notes");
-
   const nm = name.value.trim();
   const nt = notes.value.trim();
-
   if (!nm) return;
 
-  items.unshift({
-    id: uid(),
+  await addDoc(collection(db, "lists", getListId(), "items"), {
     name: nm,
     notes: nt || "",
-    addedAt: nowISO(),
+    addedAt: serverTimestamp(),
     purchasedAt: null
   });
 
   name.value = "";
   notes.value = "";
-  save(); render();
 });
 
-// Filters
+// Filtre
 $$('.filters input[name="filter"]').forEach(r =>
-  r.addEventListener("change", render)
+  r.addEventListener("change", () => startLiveQuery())
 );
 
-// Export JSON
-$("#btn-export").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `shopping-list-${new Date().toISOString().slice(0,10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-});
-
-// Import JSON (file)
-const fileInput = $("#file-input");
-$("#btn-import").addEventListener("click", () => fileInput.click());
-fileInput.addEventListener("change", async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-    if (!Array.isArray(data)) throw new Error("Invalid format");
-    items = data;
-    save(); render();
-  } catch {
-    alert("Import failed. Provide a valid JSON exported by this page.");
-  } finally {
-    fileInput.value = "";
-  }
-});
-
-// Share URL with embedded data (base64)
-$("#btn-share").addEventListener("click", async () => {
-  try {
-    const json = JSON.stringify(items);
-    const b64 = btoa(unescape(encodeURIComponent(json)));
-    const url = `${location.origin}${location.pathname}#data=${b64}`;
-    await navigator.clipboard.writeText(url);
-    alert("Link copied. Anyone with the link can load this list.");
-  } catch {
-    alert("Copy failed. Manually copy from the address bar after clicking Share.");
-    // Fallback: push to URL for manual copy
-    const json = JSON.stringify(items);
-    const b64 = btoa(unescape(encodeURIComponent(json)));
-    location.hash = `data=${b64}`;
-  }
-});
-
-// Init
-loadInitial();
-render();
+// Start app
+startLiveQuery();
