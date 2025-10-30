@@ -1,14 +1,11 @@
-// firebase.js — håndterer kun forbindelse til Firebase og Firestore
+// firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-// index.js
 import {
-  db, doc, setDoc, getDoc,
-  collection, addDoc, onSnapshot, query, orderBy,
-  serverTimestamp, updateDoc, deleteDoc
-} from "./firebase.js";
+  getFirestore, enableIndexedDbPersistence, doc, setDoc, getDoc,
+  collection, addDoc, onSnapshot, query, orderBy, serverTimestamp,
+  updateDoc, deleteDoc
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-
-// Din Firebase-konfiguration
 const firebaseConfig = {
   apiKey: "AIzaSyD4R2FQRpIoig7tlbT-ux5DEGGUh9eo_Eg",
   authDomain: "indkoeb-8810d.firebaseapp.com",
@@ -19,12 +16,10 @@ const firebaseConfig = {
   measurementId: "G-TGW6HWHC1L"
 };
 
-// Init
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 try { await enableIndexedDbPersistence(db); } catch (_) {}
 
-// Eksporter Firestore og de metoder der bruges
 export {
   db,
   doc, setDoc, getDoc,
