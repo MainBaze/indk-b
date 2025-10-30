@@ -1,20 +1,16 @@
-// index.js — dansk, Firestore, ingen “ny liste”/“del”
+// index.js — global liste uden ?id=, Firestore, dansk UI
 import {
   db, doc, setDoc, getDoc,
   collection, addDoc, onSnapshot, query, orderBy,
   serverTimestamp, updateDoc, deleteDoc
 } from "./firebase.js";
 
+// Fast liste-id (ændr navnet hvis du vil)
+const LIST_ID = "global";
+
 // ---------- Helpers ----------
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const params = new URLSearchParams(location.search);
-const getListId = () => params.get("id");
-const setListId = (id) => {
-  const p = new URLSearchParams(location.search);
-  p.set("id", id);
-  history.replaceState(null, "", `${location.pathname}?${p.toString()}`);
-};
 
 // Fejlbadge
 const statusEl = document.createElement("div");
@@ -39,23 +35,16 @@ const fmtDate = (ts) => {
 // ---------- Data-layer ----------
 let unsubscribe = null;
 
+// Sørg for at den faste liste findes
 async function ensureList() {
-  let id = getListId();
   try {
-    if (!id) {
-      const listRef = doc(collection(db, "lists"));
+    const listRef = doc(db, "lists", LIST_ID);
+    const snap = await getDoc(listRef);
+    if (!snap.exists()) {
       await setDoc(listRef, { createdAt: serverTimestamp(), title: "Indkøbsliste" });
-      id = listRef.id;
-      setListId(id);
-    } else {
-      // hvis nogen manuelt har slettet listen, genskab den
-      const snap = await getDoc(doc(db, "lists", id));
-      if (!snap.exists()) {
-        await setDoc(doc(db, "lists", id), { createdAt: serverTimestamp(), title: "Indkøbsliste" });
-      }
     }
     hideError();
-    return id;
+    return LIST_ID;
   } catch (err) {
     console.error("ensureList:", err);
     const msg = err && (err.code || err.message) ? `Årsag: ${err.code || err.message}` : "ukendt";
@@ -89,10 +78,8 @@ function renderItem(id, data) {
 
   // Købt/ikke købt
   checkbox.addEventListener("change", async () => {
-    const listId = getListId();
-    if (!listId) return showError("Listen er ikke klar. Genindlæs siden.");
     try {
-      await updateDoc(doc(db, "lists", listId, "items", id), {
+      await updateDoc(doc(db, "lists", LIST_ID, "items", id), {
         purchasedAt: checkbox.checked ? serverTimestamp() : null
       });
       hideError();
@@ -105,15 +92,13 @@ function renderItem(id, data) {
 
   // Redigér navn/notes
   const commitEdit = async () => {
-    const listId = getListId();
-    if (!listId) return showError("Listen er ikke klar. Genindlæs siden.");
     const nm = nameEl.textContent.trim();
     const nt = notesEl.textContent.trim();
     try {
       if (!nm) {
-        await deleteDoc(doc(db, "lists", listId, "items", id));
+        await deleteDoc(doc(db, "lists", LIST_ID, "items", id));
       } else {
-        await updateDoc(doc(db, "lists", listId, "items", id), { name: nm, notes: nt });
+        await updateDoc(doc(db, "lists", LIST_ID, "items", id), { name: nm, notes: nt });
       }
       hideError();
     } catch (err) {
@@ -128,10 +113,8 @@ function renderItem(id, data) {
 
   // Fjern
   removeBtn.addEventListener("click", async () => {
-    const listId = getListId();
-    if (!listId) return showError("Listen er ikke klar. Genindlæs siden.");
     try {
-      await deleteDoc(doc(db, "lists", listId, "items", id));
+      await deleteDoc(doc(db, "lists", LIST_ID, "items", id));
       hideError();
     } catch (err) {
       console.error("delete:", err);
@@ -154,12 +137,12 @@ function renderList(snapshot) {
 }
 
 async function startLiveQuery() {
-  const id = await ensureList();
-  if (!id) return;
+  const ok = await ensureList();
+  if (!ok) return;
 
   try {
     if (typeof unsubscribe === "function") unsubscribe();
-    const itemsCol = collection(db, "lists", id, "items");
+    const itemsCol = collection(db, "lists", LIST_ID, "items");
     const qy = query(itemsCol, orderBy("addedAt", "desc"));
     unsubscribe = onSnapshot(qy, (snap) => {
       hideError();
@@ -183,11 +166,8 @@ $("#add-form").addEventListener("submit", async (e) => {
   const nt = notesIn.value.trim();
   if (!nm) return;
 
-  const listId = getListId();
-  if (!listId) { showError("Listen er ikke klar. Tjek Firestore Rules og genindlæs."); return; }
-
   try {
-    await addDoc(collection(db, "lists", listId, "items"), {
+    await addDoc(collection(db, "lists", LIST_ID, "items"), {
       name: nm,
       notes: nt || "",
       addedAt: serverTimestamp(),
