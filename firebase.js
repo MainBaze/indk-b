@@ -1,9 +1,12 @@
 // firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import {
-  getFirestore, enableIndexedDbPersistence, doc, setDoc, getDoc,
-  collection, addDoc, onSnapshot, query, orderBy, serverTimestamp,
-  updateDoc, deleteDoc
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  doc, setDoc, getDoc,
+  collection, addDoc, onSnapshot, query, orderBy,
+  serverTimestamp, updateDoc, deleteDoc
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -17,11 +20,15 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-try { await enableIndexedDbPersistence(db); } catch (_) {}
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
 
 export {
   db,
   doc, setDoc, getDoc,
-  collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc
+  collection, addDoc, onSnapshot, query, orderBy,
+  serverTimestamp, updateDoc, deleteDoc
 };
